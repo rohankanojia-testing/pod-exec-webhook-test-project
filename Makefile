@@ -1,4 +1,3 @@
-# -------- Config --------
 IMAGE ?= exec-webhook
 REGISTRY ?= quay.io/rokumar
 TAG ?= latest
@@ -8,6 +7,8 @@ SERVICE_NAME ?= exec-webhook
 OPENSSL_CONFIG := config/openssl.cnf
 TLS_DIR := tls
 DOCKERFILE ?= Containerfile
+WEBHOOK_INDEX ?= 0
+WEBHOOK_NAME ?= pods-exec-deny
 
 .PHONY: all certs secret docker push deploy run clean
 
@@ -35,7 +36,6 @@ certs:
 
 	@echo "✅ TLS cert and CA generated in $(TLS_DIR)/"
 
-# -------- Create Kubernetes Secret --------
 secret:
 	kubectl create ns $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
 	kubectl delete secret $(SECRET_NAME) -n $(NAMESPACE) --ignore-not-found
@@ -43,36 +43,24 @@ secret:
 	  --cert=$(TLS_DIR)/tls.crt --key=$(TLS_DIR)/tls.key \
 	  -n $(NAMESPACE)
 
-# -------- Build Docker Image --------
 oci-build:
 	podman build -f $(DOCKERFILE) -t $(REGISTRY)/$(IMAGE):$(TAG) .
 
 oci-push:
 	podman push $(REGISTRY)/$(IMAGE):$(TAG)
 
-# -------- Deploy (apply YAMLs yourself) --------
-#deploy: secret oci-build oci-push
-deploy:
-	CA_BUNDLE := $(shell kubectl get secret exec-webhook-tls -n webhook -o jsonpath='{.data.tls\.crt}')
-	echo "CA_BUNDLE: $(CA_BUNDLE)"
-	echo "Applying webhook configuration with embedded CA_BUNDLE..."; \
-	@kubectl apply -f kubernetes.yaml
-	@kubectl patch validatingwebhookconfiguration pods-exec-deny \
-      --type='json' \
-      -p '[{"op": "add", "path": "/webhooks/0/clientConfig/caBundle", "value": "$(CA_BUNDLE)"}]'
-
+deploy: secret oci-build oci-push
+	@CA_BUNDLE=$$(kubectl get secret exec-webhook-tls -n $(NAMESPACE) -o jsonpath="{.data.tls\\.crt}"); \
+	sed "s|{{CA_BUNDLE}}|$$CA_BUNDLE|g" deploy/kubernetes.yaml | kubectl apply -f -
 	@echo "All done. Now deploy the webhook deployment, service, and webhook config manually."
 
-# -------- Run Locally (for testing without TLS) --------
 run:
 	go run main.go --cert-dir=$(TLS_DIR)
 
-# -------- Clean Up --------
 clean:
 	rm -rf $(TLS_DIR)
 
 .PHONY: undeploy
-
 undeploy:
 	@echo "Deleting ValidatingWebhookConfiguration..."
 	kubectl delete validatingwebhookconfiguration pods-exec-deny --ignore-not-found

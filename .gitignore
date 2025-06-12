@@ -7,8 +7,6 @@ pkg/
 
 # Go modules
 vendor/
-go.sum
-go.work.sum
 
 # Operator SDK generated files
 config/manifests/
