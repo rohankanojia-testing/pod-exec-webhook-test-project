@@ -1,7 +1,7 @@
 IMAGE ?= exec-webhook
 REGISTRY ?= quay.io/rokumar
 TAG ?= latest
-NAMESPACE ?= webhook
+DEPLOY_NAMESPACE = webhook
 SECRET_NAME ?= exec-webhook-tls
 SERVICE_NAME ?= exec-webhook
 OPENSSL_CONFIG := config/openssl.cnf
@@ -25,7 +25,7 @@ certs:
 	openssl genrsa -out $(TLS_DIR)/tls.key 2048
 	openssl req -new -key $(TLS_DIR)/tls.key \
 		-out $(TLS_DIR)/tls.csr \
-		-subj "/CN=${SERVICE_NAME}.${NAMESPACE}.svc" \
+		-subj "/CN=${SERVICE_NAME}.${DEPLOY_NAMESPACE}.svc" \
 		-config $(OPENSSL_CONFIG)
 
 	@# Sign server certificate with CA
@@ -37,11 +37,11 @@ certs:
 	@echo "✅ TLS cert and CA generated in $(TLS_DIR)/"
 
 secret:
-	kubectl create ns $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
-	kubectl delete secret $(SECRET_NAME) -n $(NAMESPACE) --ignore-not-found
+	kubectl create ns $(DEPLOY_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+	kubectl delete secret $(SECRET_NAME) -n $(DEPLOY_NAMESPACE) --ignore-not-found
 	kubectl create secret tls $(SECRET_NAME) \
 	  --cert=$(TLS_DIR)/tls.crt --key=$(TLS_DIR)/tls.key \
-	  -n $(NAMESPACE)
+	  -n $(DEPLOY_NAMESPACE)
 
 oci-build:
 	podman build -f $(DOCKERFILE) -t $(REGISTRY)/$(IMAGE):$(TAG) .
@@ -50,7 +50,7 @@ oci-push:
 	podman push $(REGISTRY)/$(IMAGE):$(TAG)
 
 deploy: secret oci-build oci-push
-	@CA_BUNDLE=$$(kubectl get secret exec-webhook-tls -n $(NAMESPACE) -o jsonpath="{.data.tls\\.crt}"); \
+	@CA_BUNDLE=$$(kubectl get secret exec-webhook-tls -n $(DEPLOY_NAMESPACE) -o jsonpath="{.data.tls\\.crt}"); \
 	sed "s|{{CA_BUNDLE}}|$$CA_BUNDLE|g" deploy/kubernetes.yaml | kubectl apply -f -
 	@echo "All done. Now deploy the webhook deployment, service, and webhook config manually."
 
@@ -65,7 +65,7 @@ undeploy:
 	@echo "Deleting ValidatingWebhookConfiguration..."
 	kubectl delete validatingwebhookconfiguration pods-exec-deny --ignore-not-found
 	@echo "Deleting webhook deployment and service..."
-	kubectl delete deployment exec-webhook -n $(NAMESPACE) --ignore-not-found
-	kubectl delete service exec-webhook -n $(NAMESPACE) --ignore-not-found
+	kubectl delete deployment exec-webhook -n $(DEPLOY_NAMESPACE) --ignore-not-found
+	kubectl delete service exec-webhook -n $(DEPLOY_NAMESPACE) --ignore-not-found
 	@echo "Deleting TLS secret..."
-	kubectl delete secret $(SECRET_NAME) -n $(NAMESPACE) --ignore-not-found
+	kubectl delete secret $(SECRET_NAME) -n $(DEPLOY_NAMESPACE) --ignore-not-found
