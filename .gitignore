@@ -17,8 +17,6 @@ bundle.Dockerfile
 
 # Kubernetes-related files
 helm-charts/
-*.yaml
-*.yml
 
 # Logs and debugging
 *.log

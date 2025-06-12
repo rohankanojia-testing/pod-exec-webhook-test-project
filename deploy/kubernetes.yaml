@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: exec-webhook
+  namespace: webhook
+spec:
+  selector:
+    app: exec-webhook
+  ports:
+    - port: 443
+      targetPort: 9443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exec-webhook
+  namespace: webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exec-webhook
+  template:
+    metadata:
+      labels:
+        app: exec-webhook
+    spec:
+      containers:
+        - name: webhook
+          image: quay.io/rokumar/exec-webhook:latest
+          imagePullPolicy: Always
+          args:
+            - --cert-dir=/tls
+          ports:
+            - containerPort: 9443
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: exec-webhook-tls
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: pods-exec-deny
+webhooks:
+  - name: podexec.webhook.k8s.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    rules:
+      - operations: ["CONNECT"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods/exec"]
+    clientConfig:
+      service:
+        name: exec-webhook
+        namespace: webhook
+        path: /validate-v1-pod-exec
