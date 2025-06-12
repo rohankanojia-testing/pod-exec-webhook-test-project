@@ -1,0 +1,16 @@
+req_extensions = v3_req
+distinguished_name = req_distinguished_name
+prompt = no
+
+[req_distinguished_name]
+CN = exec-webhook.webhook.svc
+
+[v3_req]
+keyUsage = keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = exec-webhook
+DNS.2 = exec-webhook.webhook
+DNS.3 = exec-webhook.webhook.svc

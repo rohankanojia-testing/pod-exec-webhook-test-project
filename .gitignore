@@ -1,0 +1,55 @@
+# Go build artifacts
+bin/
+pkg/
+*.exe
+*.test
+*.out
+
+# Go modules
+vendor/
+go.sum
+go.work.sum
+
+# Operator SDK generated files
+config/manifests/
+bundle/
+bundle.Dockerfile
+
+# Kubernetes-related files
+helm-charts/
+*.yaml
+*.yml
+
+# Logs and debugging
+*.log
+debug/
+
+# VS Code & IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+cache/
+
+# Git & CI/CD
+.git/
+.DS_Store
+.envrc
+.env
+
+# Docker files
+docker-compose.override.yml
+*.docker
+*.tar
+
+# Avoid committing local dependencies
+third_party/
+
+# Remove test coverage artifacts
+cover.out
+*.cov
+
+
