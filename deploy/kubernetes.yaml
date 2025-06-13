@@ -79,7 +79,7 @@ webhooks:
         resources: [ "pods" ]
     objectSelector:
       matchLabels:
-        controller.devfile.io/creator: "yesd"
+        controller.devfile.io/creator: "foocreator"
     clientConfig:
       service:
         name: exec-webhook

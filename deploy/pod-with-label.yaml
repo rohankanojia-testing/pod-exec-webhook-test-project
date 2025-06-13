@@ -4,7 +4,7 @@ metadata:
   name: exec-webhook-test-pod
   labels:
     app: exec-webhook
-    controller.devfile.io/creator: "yesd"
+    controller.devfile.io/creator: "foocreator"
 spec:
   containers:
     - name: busybox

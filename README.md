@@ -1,8 +1,9 @@
 ## Simple Pod Exec WebHook
-This is a simple Pod Exec Webhook that only allows to exec into specific namespaces.
+This is a simple Webhook project that restricts pod operations in certain namespaces:
+- Allow exec into specific namespaces `kube-system`/`dev`
+- Allow creating Pod with a specific label in `kube-system`/`dev`
 
 ## Prerequisites
-- Podman/Docker
 - Kubernetes cluster (Kind/Minikube)
 - Quay/DockerHub account to push container image
 
@@ -43,13 +44,18 @@ sh-5.2#
 
 ## Reproducing the original issue
 
+Original motivation of creating this repository is to showcase that `objectSelector` is not working for pods/exec webhook.
+
 Let's modify ValidatingWebhookConfiguration to match only Pods with selected labels:
 ```shell
   objectSelector:
     matchLabels:
-      controller.devfile.io/creator: yesd
+      controller.devfile.io/creator: foocreator
 ```
-
+You can also run this command that would automatically update ValidatingWebhookConfiguration and test it:
+```shell
+make test-pod-exec-object-selector
+```
 Now expectation should be that webhook should only check Pods with labels `controller.devfile.io/creator`.
 
 However, after applying this change webhook isn't fired at all. 
