@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -66,4 +67,22 @@ webhooks:
         name: exec-webhook
         namespace: webhook
         path: /validate-v1-pod-exec
+      caBundle: {{CA_BUNDLE}}
+  - name: podcreation.webhook.k8s.io
+    admissionReviewVersions: [ "v1" ]
+    sideEffects: None
+    failurePolicy: Fail
+    rules:
+      - operations: [ "CREATE" ]
+        apiGroups: [ "" ]
+        apiVersions: [ "v1" ]
+        resources: [ "pods" ]
+    objectSelector:
+      matchLabels:
+        controller.devfile.io/creator: "yesd"
+    clientConfig:
+      service:
+        name: exec-webhook
+        namespace: webhook
+        path: /validate-v1-pod-create
       caBundle: {{CA_BUNDLE}}

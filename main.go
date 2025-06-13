@@ -36,6 +36,7 @@ func main() {
 	hookServer := mgr.GetWebhookServer()
 	fmt.Println("registering webhooks to the webhook server")
 	hookServer.Register("/validate-v1-pod-exec", &webhook.Admission{Handler: api.NewExecValidator(mgr)})
+	hookServer.Register("/validate-v1-pod-create", &webhook.Admission{Handler: api.NewCreationValidator(mgr)})
 
 	fmt.Println("starting webhook server")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

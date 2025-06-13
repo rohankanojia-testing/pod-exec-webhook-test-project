@@ -7,8 +7,10 @@ SERVICE_NAME ?= exec-webhook
 OPENSSL_CONFIG := config/openssl.cnf
 TLS_DIR := tls
 DOCKERFILE ?= Containerfile
-WEBHOOK_INDEX ?= 0
+EXEC_WEBHOOK_INDEX ?= 0
+CREATE_WEBHOOK_INDEX ?= 1
 WEBHOOK_NAME ?= pods-exec-deny
+POD_NAME=exec-webhook-test-pod
 
 .PHONY: all certs secret docker push deploy run clean
 
@@ -51,8 +53,8 @@ oci-push:
 
 deploy: secret oci-build oci-push
 	@CA_BUNDLE=$$(kubectl get secret exec-webhook-tls -n $(DEPLOY_NAMESPACE) -o jsonpath="{.data.tls\\.crt}"); \
-	sed "s|{{CA_BUNDLE}}|$$CA_BUNDLE|g" deploy/kubernetes.yaml | kubectl apply -f -
-	@echo "All done. Now deploy the webhook deployment, service, and webhook config manually."
+	sed "s|{{CA_BUNDLE}}|$$CA_BUNDLE|g" deploy/kubernetes.yaml | kubectl apply -f - 
+	@echo "✅ All done. Now deploy the webhook deployment, service, and webhook config manually."
 
 run:
 	go run main.go --cert-dir=$(TLS_DIR)
@@ -69,3 +71,38 @@ undeploy:
 	kubectl delete service exec-webhook -n $(DEPLOY_NAMESPACE) --ignore-not-found
 	@echo "Deleting TLS secret..."
 	kubectl delete secret $(SECRET_NAME) -n $(DEPLOY_NAMESPACE) --ignore-not-found
+	kubectl delete pods -l app=exec-webhook
+
+.PHONY: test-pod-exec
+test-pod-exec:
+	@echo "Creating a test pod..."
+	kubectl run $(POD_NAME)-created-test-pod-exec --image=busybox --labels="app=exec-webhook" --restart=Never -- sleep 3600
+	
+
+.PHONY: test-pod-exec-object-selector
+test-pod-exec-object-selector:
+	@echo "Updating ValidatingWebhookConfiguration to have objectSelector"
+	@echo "Patching ValidatingWebhookConfiguration '$(WEBHOOK_NAME)' to have objectSelector for label controller.devfile.io/creator=yesd"
+	kubectl patch validatingwebhookconfiguration $(WEBHOOK_NAME) --type=json \
+    		-p='[{"op": "add", "path": "/webhooks/$(EXEC_WEBHOOK_INDEX)/objectSelector", "value": {"matchLabels": {"controller.devfile.io/creator": "yesd"}}}]'
+	kubectl patch validatingwebhookconfiguration $(WEBHOOK_NAME) --type=json \
+        		-p='[{"op": "add", "path": "/webhooks/$(CREATE_WEBHOOK_INDEX)/objectSelector", "value": {"matchLabels": {"controller.devfile.io/creator": "yesd"}}}]'
+	kubectl run $(POD_NAME)-created-objectselector --image=busybox --labels="app=exec-webhook" --restart=Never -- sleep 3600
+	@echo "✅ Creating a new Pod without label worked"
+	kubectl wait --for=condition=Ready pod/$(POD_NAME)-created-objectselector --timeout=30s
+	kubectl exec $(POD_NAME) -- echo "Hello from inside the pod! (No label)"
+	@echo "✅ Exec into the Pod without label worked"
+	
+	@if kubectl run $(POD_NAME)-with-label --image=busybox --labels="app=exec-webhook,controller.devfile.io/creator=yesd" --restart=Never -- sleep 3600; then \
+		echo "Exec into Pod with label worked [This is not expected]">&2; \
+		exit 1; \
+	else \
+		echo "✅ SUCCESS: Pod creation with label got rejected"; \
+	fi
+	
+.PHONY: test-pod-create
+test-pod-create:
+	@echo "Creating Simple Pod without Labels"
+	kubectl run $(POD_NAME) --image=busybox --labels="app=exec-webhook" --restart=Never -- sleep 3600
+	@echo "Creating Simple Pod with label"
+	kubectl run $(POD_NAME) --image=busybox --labels="app=exec-webhook,controller.devfile.io/creator=yesd" --restart=Never -- sleep 3600	
